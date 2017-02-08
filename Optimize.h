@@ -98,4 +98,6 @@ T bisection (T (*g)(T x), T lb, T rb, T d = 0.01){
   return ((lb + rb) / 2.);
 }
 
+// Genetic algorithms, Nelder-Mead, simualated annealing
+
 #endif
