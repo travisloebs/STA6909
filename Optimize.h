@@ -41,16 +41,20 @@ T lattice(T (*f)(T x), const T lb, const T rb, const int N = 988){
 
 // The Golden Section Search method of univariate optimization
 template <class T>
-T gss (T (*f)(T x), T lb, T rb, T d){
+T gss (T (*f)(T x), T lb, T rb, T epsilon, T (*cc)(T x_0, T x_1, T epsilon)){
   double golden_ratio = (1. + sqrt(5)) / 2. - 1.;
   if (lb >= rb){
     std::cout << "Left bound must be less than the right bound.\n";
     return 0.;
   }
+
+  T (*conv_crit)(T, T, T);
+  conv_crit = &(*cc);
+
   double left  = lb + (rb - lb) * (1. - golden_ratio);
   double right = lb + (rb - lb) * (golden_ratio);
-
-  while ((right - left) > d){
+  std::cout << "cc is " << conv_crit(left, right, epsilon) << std::endl;
+  while (conv_crit(left, right, epsilon) != 1){
     if ((*f)(left) > (*f)(right))
       rb = right;
     else
@@ -58,6 +62,7 @@ T gss (T (*f)(T x), T lb, T rb, T d){
 
     left  = lb + (rb - lb) * (1. - golden_ratio);
     right = lb + (rb - lb) * (golden_ratio);
+    std::cout << "cc is " << conv_crit(left, right, epsilon) << std::endl;
   }
   return ((lb + rb) / 2.);
 }
@@ -96,6 +101,51 @@ T bisection (T (*g)(T x), T lb, T rb, T d = 0.01){
       return (mid_point);
   }
   return ((lb + rb) / 2.);
+}
+
+// The Newton method for univariate optimization and root finding
+template <class T>
+T uNewton (T (*g)(T x), T (*g_prime)(T x), T x, T d = 0.01){
+  T diff = 999999;
+  while (diff > d){
+    diff = x;
+    x = x - (*g)(x) / (*g_prime)(x);
+    diff = abs(x - diff);
+  }
+  return (x);
+}
+
+// The secant method for univariate optimization and root finding
+template <class T>
+T uSecant (T (*g)(T x), T x, T d = 0.01){
+  T x_new = x * 1.01;
+  T diff = 999999;
+  while (diff > d){
+    diff = x_new;
+    x_new = x_new - ((x_new - x) / (g(x_new) - g(x))) * g(x_new);
+    x = diff;
+    diff = abs(x_new - x);
+  }
+  return (x_new);
+}
+
+// Absolute convergence criterion
+template <class T>
+T abs_cc (T x_0, T x_1, T epsilon){
+  std::cout << abs(x_1 - x_0) << std::endl;
+  return (abs(x_1 - x_0) < epsilon);
+}
+
+// Relative convergence criterion
+template <class T>
+bool rel_cc (T x_0, T x_1, T epsilon){
+  return( abs(x_1 - x_0) / abs(x_0) < epsilon);
+}
+
+// Modified relative convergence criterion
+template <class T>
+bool mrel_cc (T x_0, T x_1, T epsilon){
+  return( abs(x_1 - x_0) / (abs(x_0) + epsilon) < epsilon);
 }
 
 // Genetic algorithms, Nelder-Mead, simualated annealing
