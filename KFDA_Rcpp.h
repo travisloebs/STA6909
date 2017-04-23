@@ -1,40 +1,12 @@
+#ifndef KFDA_RCPP
+#define KFDA_RCPP
+
 // [[Rcpp::depends(RcppArmadillo)]]
-
 #include <RcppArmadillo.h>
-#include "/Volumes/CompStats/STA6909/Indep Study/KFDA_Rcpp.h"
 #include <cmath>
-
 using namespace Rcpp;
 using namespace arma;
 
-mat mkI (int n);
-mat randMat (const int nrows, const int ncols);
-mat mkE_w (const mat & X1, const mat & X2);
-double innr_prod (const mat & X1, const mat & X2);
-double linear_kernel(const mat & X1, const mat & X2, double c);
-typedef double (*kernelPtr) (const mat & X1, const mat & X2, double k_param);
-XPtr <kernelPtr> kernelXPtr(std::string kstr);
-mat mkK (mat X, std::string kernname, double k_param);
-mat mk1(const int l);
-mat mkP(const int l);
-mat mkNull(const int nrows, const int ncols);
-mat mkN(const int n1, const int n2);
-mat m(const int n1, const int n2);
-double maxKFDR(const mat & X1, const mat & X2, const mat & K, const double & gamma);
-double mkd(const int r, const mat & E_w, const double gamma);
-double T_hat(const mat & X1, const mat & X2, const mat & K, const double gamma);
-List KCpA(const mat & X, const mat & K, const double & gamma);
-mat tsim(const int & nsims);
-typedef mat (*distPtr) (const int & n, const int & m, const int & df);
-XPtr <distPtr> distXPtr(std::string dstr);
-cube randCube(const int & n, 
-              const int & m, 
-              const int & nsims, 
-              const std::string & distname);
-mat randT(const int & n, const int & m, const int & df);
-mat randMVN(const int & n, const int & m, const int & df);
-
-/*
 // [[Rcpp::export]]
 mat mkI (int n){
   mat a(n, n); 
@@ -148,7 +120,7 @@ mat m(const int n1, const int n2){
 
 // [[Rcpp::export]]
 double maxKFDR(const mat & X1, const mat & X2, const mat & K, const double & gamma){
-// Dynamically compute n1, n2, and n to reduce number of function parameters
+  // Dynamically compute n1, n2, and n to reduce number of function parameters
   int n1 = X1.n_rows;
   int n2 = X2.n_rows;
   int n = n1 + n2;
@@ -159,9 +131,9 @@ double maxKFDR(const mat & X1, const mat & X2, const mat & K, const double & gam
   // Use the formula on the last line of section 3.2 in
   // the homogeneity paper (ktest_v1-1_bible.pdf)
   mat ratio = n1 * n2 / (gamma * n) * (_m.t() * K * _m - 1. / n * _m.t() * K * N *
-                                        inv(gamma * mkI(n) + 1. / n * N * K * N) *
-                                        N * K * _m);
-    return (ratio(0, 0));
+    inv(gamma * mkI(n) + 1. / n * N * K * N) *
+    N * K * _m);
+  return (ratio(0, 0));
 }
 
 // [[Rcpp::export]]
@@ -176,7 +148,7 @@ double mkd(const int r, const mat & E_w, const double gamma){
 
 // [[Rcpp::export]]
 double T_hat(const mat & X1, const mat & X2, const mat & K, const double gamma){
-
+  
   double t_hat = (maxKFDR(X1, X2, K, gamma) - mkd(1, mkE_w(X1, X2), gamma)) / (sqrt(2.) * mkd(2, mkE_w(X1, X2), gamma));
   
   return t_hat;
@@ -190,12 +162,12 @@ List KCpA(const mat & X, const mat & K, const double & gamma){
   // We will return a vector contraining all of the ratios from
   // the for loop for diagnostics
   mat ratios(n - 2, 1);
-    
+  
   double max = -(std::numeric_limits<double>::infinity());
-    
+  
   // The place variable will be used to keep track of the maximum KFDA statistic
   int place = 0;
-    
+  
   for (int k = 2; k < n-1; k++){
     // Reshape the segments based on the new k
     mat X1 = X.submat(0, 0, k - 1, ncols - 1);
@@ -209,7 +181,7 @@ List KCpA(const mat & X, const mat & K, const double & gamma){
     }
   }
   place = place + 1;
-
+  
   return List::create(Named("ratios")=ratios, Named("max")=max, Named("place")=place);
 }
 
@@ -228,11 +200,64 @@ mat tsim(const int & nsims){
   
   return T;
 }
-*/
-/*** R
 
-*/
+mat randT(const int & n, const int & m, const int & df);
+mat randMVN(const int & n, const int & m, const int & df);
 
+typedef mat (*distPtr) (const int & n, const int & m, const int & df);
+
+// [[Rcpp::export]]
+XPtr <distPtr> distXPtr(std::string dstr) {
+  // Must manually specify return for each kernel
+  if (dstr == "mvnorm")
+    return (XPtr <distPtr> (new distPtr (&randMVN)));
+  else if (dstr == "mvt")
+    return (XPtr <distPtr> (new distPtr (&randT)));
+  else if (dstr == "mvcauchy")
+    return (XPtr <distPtr> (new distPtr (&randT)));
+  else
+    return (XPtr <distPtr> (R_NilValue));
+}
+
+// [[Rcpp::export]]
+cube randCube(const int & n, 
+              const int & m, 
+              const int & nsims, 
+              const std::string & distname){
+  XPtr <distPtr> xpdist = distXPtr(distname);
+  distPtr mv_dist = *xpdist;
+  int df;
+  if (distname == "mvt")
+    df = 5;
+  else if (distname == "mvcauchy")
+    df = 1;
+  else
+    df = 0;
+  
+  cube X(n, m, nsims);
+  for (int i = 0; i < nsims; i++){
+    mat temp = mv_dist(n, m, df);
+    X.slice(i) = temp;
+  }
+  return X;
+}
+
+// [[Rcpp::export]]
+mat randT(const int & n, const int & m, const int & df){
+  NumericMatrix X(n, m);
+  for (int i = 0; i < m; i++)
+    X(_, i) = rt(n*m, df);
+  mat X_arma = as<mat>(X);
+  return X_arma;
+}
+
+// [[Rcpp::export]]
+mat randMVN(const int & n, const int & m, const int & df = 0){
+  mat mvn = randn<mat>(n, m);
+  return mvn;
+}
+
+#endif
 
 
 
